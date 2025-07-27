@@ -4,7 +4,7 @@ from db_config import get_connection
 
 @app.route("/", methods=["GET"])
 def home():
-    return "🎉 Welcome to the Manufacturer API! Use /blankets to fetch data."
+    return "🎉 Welcome to the Manufacturer API! Use https://manufacturer-api-ez0s.onrender.com/blankets to fetch data."
 
 @app.route('/blankets', methods=['GET'])
 def get_blankets():
