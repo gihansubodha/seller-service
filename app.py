@@ -9,6 +9,5 @@ CORS(app)
 from routes.blanket_routes import *
 
 if __name__ == "__main__":
-    # Render requires host="0.0.0.0" and port from environment
-    port = int(os.environ.get("PORT", 5000))
+    port = int(os.environ.get("PORT", 10000))  # fallback to 10000 if not found
     app.run(host="0.0.0.0", port=port, debug=True)
