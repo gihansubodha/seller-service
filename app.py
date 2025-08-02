@@ -1,59 +1,89 @@
 from flask import Flask, request, jsonify
-import jwt
-from functools import wraps
-from db_config import get_connection
 from flask_cors import CORS
+import mysql.connector
+from db_config import get_db_connection
 
 app = Flask(__name__)
 CORS(app)
-AUTH_SECRET = "your_auth_secret"
 
-def token_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        token = request.headers.get("Authorization", "").split(" ")[-1]
-        if not token:
-            return jsonify({"message": "Token required"}), 401
-        try:
-            jwt.decode(token, AUTH_SECRET, algorithms=["HS256"])
-        except:
-            return jsonify({"message": "Invalid token"}), 401
-        return f(*args, **kwargs)
-    return decorated
-
-@app.route("/orders", methods=["GET"])
-@token_required
-def get_orders():
-    conn = get_connection()
+# GET Seller Stock
+@app.route('/stock/<int:seller_id>', methods=['GET'])
+def get_seller_stock(seller_id):
+    conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM orders")
-    data = cursor.fetchall()
+    cursor.execute("SELECT * FROM seller_stock WHERE seller_id=%s", (seller_id,))
+    stock = cursor.fetchall()
     conn.close()
-    return jsonify(data)
+    return jsonify(stock)
 
-@app.route("/orders", methods=["POST"])
-@token_required
-def place_order():
+# ADD New Stock Item
+@app.route('/stock', methods=['POST'])
+def add_seller_stock():
     data = request.json
-    conn = get_connection()
+    seller_id = data['seller_id']
+    blanket_model = data['blanket_model']
+    quantity = data['quantity']
+    min_required = data.get('min_required', 5)
+
+    conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO orders (name, customer, quantity, min_stock) VALUES (%s, %s, %s, %s)",
-                   (data["name"], data["customer"], data["quantity"], data["min_stock"]))
+    cursor.execute("INSERT INTO seller_stock (seller_id, blanket_model, quantity, min_required) VALUES (%s, %s, %s, %s)",
+                   (seller_id, blanket_model, quantity, min_required))
     conn.commit()
     conn.close()
-    return jsonify({"message": "Order added"})
+    return jsonify({"msg": "Stock item added"})
 
-@app.route("/request_distributor", methods=["POST"])
-@token_required
-def request_to_distributor():
+# UPDATE Stock Quantity
+@app.route('/stock/<int:stock_id>', methods=['PUT'])
+def update_seller_stock(stock_id):
     data = request.json
-    conn = get_connection()
+    quantity = data['quantity']
+
+    conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO distributor_orders (blanket_name, quantity, status) VALUES (%s, %s, %s)",
-                   (data["blanket_name"], data["quantity"], "pending"))
+    cursor.execute("UPDATE seller_stock SET quantity=%s WHERE id=%s", (quantity, stock_id))
     conn.commit()
     conn.close()
-    return jsonify({"message": "Request sent to distributor"})
+    return jsonify({"msg": "Stock updated"})
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+# DELETE Stock Item
+@app.route('/stock/<int:stock_id>', methods=['DELETE'])
+def delete_seller_stock(stock_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM seller_stock WHERE id=%s", (stock_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({"msg": "Stock item deleted"})
+
+# SEND Stock Request to Distributor
+@app.route('/request-stock', methods=['POST'])
+def request_stock():
+    data = request.json
+    seller_id = data['seller_id']
+    distributor_id = data['distributor_id']
+    blanket_model = data['blanket_model']
+    quantity = data['quantity']
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO seller_requests (seller_id, distributor_id, blanket_model, quantity) VALUES (%s, %s, %s, %s)",
+                   (seller_id, distributor_id, blanket_model, quantity))
+    conn.commit()
+    conn.close()
+    return jsonify({"msg": "Stock request sent to distributor"})
+
+# AUTO CHECK Low Stock
+@app.route('/check-low-stock/<int:seller_id>', methods=['GET'])
+def check_low_stock(seller_id):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM seller_stock WHERE seller_id=%s AND quantity < min_required", (seller_id,))
+    low_stock = cursor.fetchall()
+    conn.close()
+    return jsonify({"low_stock": low_stock})
+
+if __name__ == '__main__':
+    import os
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
