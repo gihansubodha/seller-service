@@ -83,6 +83,11 @@ def check_low_stock(seller_id):
     conn.close()
     return jsonify({"low_stock": low_stock})
 
+#  Health Check
+@app.route('/', methods=['GET'])
+def health():
+    return jsonify({"status": "Manufacturer Service Running"})
+
 if __name__ == '__main__':
     import os
     port = int(os.environ.get("PORT", 5000))
