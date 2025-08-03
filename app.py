@@ -86,7 +86,7 @@ def check_low_stock(seller_id):
 #  Health Check
 @app.route('/', methods=['GET'])
 def health():
-    return jsonify({"status": "Manufacturer Service Running"})
+    return jsonify({"status": "Seller Service Running"})
 
 if __name__ == '__main__':
     import os
